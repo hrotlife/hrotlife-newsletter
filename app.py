@@ -290,12 +290,21 @@ SPRAVNE: "Ashwagandha funguje ako resetovaci vypinac pre tvoj stresovy system. K
 ZLE: "Reishi zlepsuje spatok."
 SPRAVNE: "Reishi neuspava — uci tvoj nervovy system ze noc je bezpecna. Vela zien po 40 nezaspa preto ze su unavene, ale preto ze ich telo este stale dobiehaju stresove hormony z dna. Reishi tento signal postupne utlmuje."
 
-PRAVIDLA TONU:
-- Kratke vety. Max 2-3 riadky na odstavec.
-- Jedno latinicke slovo max na odstavec, vzdy s vysvetlenim v zatvorke alebo hned za nim
-- Kazdy odstavec = 1 myslenka
-- Produkty vloz ako prirodzene pokracovanie — nie ako reklamu
-- Podpis: MDDr. Martin Masa + 1 osobna veta"""
+DLZKA A STRUKTURA:
+- Kazdy odstavec = MAX 2-3 vety. Ak mas viac, rozlom na dva odstavce.
+- Cely email = max 350-450 slov. Ziadne romany.
+- 1 odkaz na realnu studiu na cely newsletter (napr. "Podla studie z Journal of Endocrinology, 2019...") — nie viac
+- Produkt prelinkuj max 1-2x, prirodzene, nie agresivne
+- Podpis: MDDr. Martin Masa + 1 osobna veta
+
+FORMAT EMAILU:
+Uvod (2-3 vety, hook)
+---
+Odstavec 1: problem zo zivota citatela (2-3 vety)
+Odstavec 2: preco sa to deje — laicky mechanizmus (2-3 vety)
+Odstavec 3: prekvapive spojenie alebo dosledok (2-3 vety)
+Odstavec 4: riesenie + produkt (2-3 vety)
+Záver + podpis (2-3 vety)"""
     if tone_examples.strip():
         base += f"\n\nUKAZKY MOJHO SKUTOCNEHO PISANIA (kopiruj presne tento hlas):\n---\n{tone_examples.strip()}\n---"
     return base
@@ -514,3 +523,65 @@ if "result" in st.session_state:
                 file_name=f"hrotlife_{topic.lower().replace(' ', '_')}_{email_type}.html",
                 mime="text/html",
             )
+
+    # ── feedbackovač ──────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### ✏️ Upraviť email")
+    st.caption("Napíš čo chceš zmeniť — agent upraví existujúci email podľa tvojich pokynov.")
+
+    feedback = st.text_area(
+        "Tvoje pripomienky",
+        placeholder="napr. Skráť každý odstavec na 2 vety. Pridaj viac osobného tónu v úvode. Zmeň produkt v CTA na Reishi tinktúru.",
+        height=100,
+        label_visibility="collapsed",
+        key="feedback_input",
+    )
+
+    if st.button("🔄 Upraviť podľa pripomienok", disabled=not (feedback.strip() and api_key), use_container_width=True):
+        client_fb = anthropic.Anthropic(api_key=api_key)
+        with st.spinner("Upravujem email..."):
+            fb_system = build_system_prompt(tone_examples)
+            fb_prompt = f"""Tu je existujuci newsletter:
+
+PREDMET A: {r.get("subject_a", "")}
+PREDMET B: {r.get("subject_b", "")}
+PREVIEW: {r.get("preview_text", "")}
+
+HTML EMAIL:
+{r.get("email_html", "")}
+
+Citatelove pripomienky a zmeny ktore chce:
+{feedback.strip()}
+
+Uprav newsletter podla tychto pripomienok. Zachovaj strukturu, produktove linky a podpis.
+Odpovedz v rovnakom formate ako povodny email:
+
+<subject_a>upraveny predmet A</subject_a>
+<subject_b>upraveny predmet B</subject_b>
+<preview_text>upraveny preview</preview_text>
+<email_html>
+upraveny kompletny HTML email
+</email_html>"""
+
+            fb_response = client_fb.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=8000,
+                system=fb_system,
+                messages=[{"role": "user", "content": fb_prompt}],
+            )
+            raw_fb = fb_response.content[0].text.strip()
+
+            import re as _re
+            def _extract(tag, text):
+                m = _re.search(rf'<{tag}>(.*?)</{tag}>', text, _re.DOTALL)
+                return m.group(1).strip() if m else ""
+
+            updated = {
+                "subject_a": _extract("subject_a", raw_fb) or r.get("subject_a"),
+                "subject_b": _extract("subject_b", raw_fb) or r.get("subject_b"),
+                "preview_text": _extract("preview_text", raw_fb) or r.get("preview_text"),
+                "email_html": _extract("email_html", raw_fb) or r.get("email_html"),
+            }
+            st.session_state.result = updated
+            st.session_state.generated_at = datetime.now().strftime("%d.%m.%Y %H:%M") + " (upravené)"
+            st.rerun()
