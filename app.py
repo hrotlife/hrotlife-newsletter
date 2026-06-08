@@ -230,14 +230,18 @@ Formát výstupu — odpovedz VÝLUČNE v JSON (bez markdown backticks):
 
     response = client.messages.create(
         model="claude-sonnet-4-5",
-        max_tokens=4000,
+        max_tokens=6000,
         system=system,
         messages=[{"role": "user", "content": user_prompt}],
     )
 
     raw = response.content[0].text.strip()
-    raw = re.sub(r"^```json\s*", "", raw)
-    raw = re.sub(r"```\s*$", "", raw)
+    raw = re.sub(r"^```json\s*", "", raw, flags=re.MULTILINE)
+    raw = re.sub(r"^```\s*", "", raw, flags=re.MULTILINE)
+    raw = raw.strip()
+    match = re.search(r'\{.*\}', raw, re.DOTALL)
+    if match:
+        raw = match.group(0)
     return json.loads(raw)
 
 
