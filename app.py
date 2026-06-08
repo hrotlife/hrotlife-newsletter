@@ -229,7 +229,7 @@ Formát výstupu — odpovedz VÝLUČNE v JSON (bez markdown backticks):
 }}"""
 
     response = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=4000,
         system=system,
         messages=[{"role": "user", "content": user_prompt}],
@@ -244,7 +244,7 @@ Formát výstupu — odpovedz VÝLUČNE v JSON (bez markdown backticks):
 def research_subtopics(client, topic: str, tone_examples: str) -> list[str]:
     system = build_system_prompt(tone_examples)
     response = client.messages.create(
-        model="claude-opus-4-5",
+        model="claude-sonnet-4-5",
         max_tokens=600,
         system=system,
         messages=[{"role": "user", "content": f"""Pre tému "{topic}" navrhni 3 najpálčivejšie podotázky,
