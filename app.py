@@ -321,7 +321,7 @@ kompletný HTML email s inline štýlmi vhodný pre Ecomail
 Použi presne tieto XML značky. Nič iné nepíš."""
 
     response = client.messages.create(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-4-6",
         max_tokens=6000,
         system=system,
         messages=[{"role": "user", "content": user_prompt}],
@@ -344,7 +344,7 @@ Použi presne tieto XML značky. Nič iné nepíš."""
 def research_subtopics(client, topic: str, tone_examples: str) -> list[str]:
     system = build_system_prompt(tone_examples)
     response = client.messages.create(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-4-6",
         max_tokens=600,
         system=system,
         messages=[{"role": "user", "content": f"""Pre tému "{topic}" navrhni 3 najpálčivejšie podotázky,
