@@ -132,32 +132,77 @@ section[data-testid="stSidebar"] label {
 </style>
 """, unsafe_allow_html=True)
 
-# ── sidebar — tone of voice + produkty ────────────────────────────────────────
+# ── načítaj secrets (API kľúč + tone of voice + produkty) ────────────────────
+def get_secret(key: str, default: str = "") -> str:
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        return default
+
+_api_key_from_secrets = get_secret("ANTHROPIC_API_KEY")
+_tone_from_secrets = get_secret("TONE_OF_VOICE")
+_products_from_secrets = get_secret("PRODUCTS")
+
+# ── sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 🍄 Hrotlife Agent")
     st.markdown("---")
 
     st.markdown("**Tone of voice**")
-    tone_examples = st.text_area(
-        "Vlož ukážky z minulých newslettrov",
-        height=220,
-        placeholder="Vlož sem 2–3 odseky z predchádzajúcich newslettrov. Agent sa podľa nich naučí tvoj štýl písania...",
-        key="tone_input",
-    )
+    if _tone_from_secrets:
+        st.success("✓ Načítaný zo Secrets", icon="🔒")
+        with st.expander("Zobraziť / upraviť"):
+            tone_examples = st.text_area(
+                "Tone of voice",
+                value=_tone_from_secrets,
+                height=200,
+                label_visibility="collapsed",
+                key="tone_input",
+            )
+    else:
+        tone_examples = st.text_area(
+            "Tone of voice",
+            height=220,
+            placeholder="Vlož sem 2–3 odseky z predchádzajúcich newslettrov...",
+            label_visibility="collapsed",
+            key="tone_input",
+        )
+        st.caption("💡 Nastav v Streamlit Secrets pre trvalé uloženie")
 
     st.markdown("---")
     st.markdown("**Produkty mesiaca**")
-    products_raw = st.text_area(
-        "Produkt — URL (každý na nový riadok)",
-        height=130,
-        placeholder="Hrotlife Lev mohutný — https://hrotlife.sk/...\nHrotlife Maitake — https://hrotlife.sk/...",
-        key="products_input",
-    )
+    if _products_from_secrets:
+        st.success("✓ Načítané zo Secrets", icon="🔒")
+        with st.expander("Zobraziť / upraviť"):
+            products_raw = st.text_area(
+                "Produkty",
+                value=_products_from_secrets,
+                height=130,
+                label_visibility="collapsed",
+                key="products_input",
+            )
+    else:
+        products_raw = st.text_area(
+            "Produkty",
+            height=130,
+            placeholder="Hrotlife Lev mohutný — https://hrotlife.sk/...\nHrotlife Maitake — https://hrotlife.sk/...",
+            label_visibility="collapsed",
+            key="products_input",
+        )
+        st.caption("💡 Nastav v Streamlit Secrets pre trvalé uloženie")
 
     st.markdown("---")
-    api_key = st.text_input("Anthropic API kľúč", type="password", key="api_key")
-    if not api_key:
-        st.info("Zadaj API kľúč pre spustenie generovania.")
+    if _api_key_from_secrets:
+        st.success("✓ API kľúč načítaný zo Secrets", icon="🔒")
+        api_key = _api_key_from_secrets
+        with st.expander("Zmeniť API kľúč"):
+            override = st.text_input("Nový API kľúč", type="password", label_visibility="collapsed", key="api_key_override")
+            if override:
+                api_key = override
+    else:
+        api_key = st.text_input("Anthropic API kľúč", type="password", key="api_key")
+        if not api_key:
+            st.info("Zadaj API kľúč alebo nastav v Streamlit Secrets.")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
