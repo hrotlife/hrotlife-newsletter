@@ -207,14 +207,62 @@ with st.sidebar:
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 def parse_products(raw: str) -> list[dict]:
+    # Odstran TOML artefakty ak su pritomne
+    raw = raw.strip()
+    for prefix in ["PRODUCTS = '''", 'PRODUCTS = """', "'''", '"""']:
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+    for suffix in ["'''", '"""']:
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)]
+    raw = raw.strip()
+
     items = []
-    for line in raw.strip().splitlines():
-        if "—" in line:
-            parts = line.split("—", 1)
-            items.append({"name": parts[0].strip(), "url": parts[1].strip()})
-        elif "http" in line:
-            items.append({"name": line.strip(), "url": line.strip()})
+    blocks = [b.strip() for b in raw.split("\n\n") if b.strip()]
+    for block in blocks:
+        lines = [l.strip() for l in block.splitlines() if l.strip()]
+        if not lines:
+            continue
+        item = {}
+        first = lines[0]
+        if "|" in first:
+            parts = first.split("|", 1)
+            item["name"] = parts[0].strip()
+            item["url"] = parts[1].strip()
+        elif "—" in first:
+            parts = first.split("—", 1)
+            item["name"] = parts[0].strip()
+            item["url"] = parts[1].strip()
+        elif "http" in first:
+            item["name"] = first.strip()
+            item["url"] = first.strip()
+        else:
+            continue
+        for line in lines[1:]:
+            low = line.lower()
+            if low.startswith("ucinok:"):
+                item["ucinok"] = line.split(":", 1)[1].strip()
+            elif low.startswith("klucove_slova:"):
+                item["klucove_slova"] = line.split(":", 1)[1].strip()
+        if item.get("name") and item.get("url"):
+            items.append(item)
     return items
+
+
+def build_product_context(products: list[dict], topic: str) -> str:
+    """Zostaví kontext produktov pre agenta — relevantné produkty k téme."""
+    if not products:
+        return ""
+    lines = ["PRODUKTOVÁ MAPA HROTLIFE (použi pri písaní — prelinkuj prirodzene):"]
+    for p in products:
+        line = f"• {p['name']} → {p['url']}"
+        if p.get("ucinok"):
+            line += f"\n  Účinok: {p['ucinok']}"
+        if p.get("klucove_slova"):
+            line += f"\n  Relevantné pre témy: {p['klucove_slova']}"
+        lines.append(line)
+    lines.append(f"\nTéma newslettera je '{topic}'. Vyber produkty ktoré sú relevantné k tejto téme a prelinkuj ich prirodzene v texte — nie ako reklamu, ale ako logické odporúčanie.")
+    return "\n".join(lines)
 
 
 def build_system_prompt(tone_examples: str) -> str:
@@ -231,8 +279,7 @@ Nikdy nepoužívaš clickbait. Buduješ autoritu Hrotlife cez edukáciu."""
 def generate_email(client, email_type: str, topic: str, subtopics: list[str],
                    products: list[dict], tone_examples: str) -> dict:
     system = build_system_prompt(tone_examples)
-
-    products_str = "\n".join([f"- {p['name']}: {p['url']}" for p in products]) if products else "žiadne produkty"
+    product_context = build_product_context(products, topic)
 
     if email_type == "brand":
         type_instruction = """Píšeš BRANDOVÝ newsletter dlhovekosti.
@@ -241,20 +288,15 @@ Cieľ: zvýšiť odbornosť Hrotlife, nie predávať.
 1. Úvodný hook (1 prekvapivý fakt alebo otázka)
 2. Mechanizmus — vysvetli prečo (nie len čo), s odkazom na štúdie
 3. Praktický záver — čo môže čitateľ urobiť dnes
-4. Soft CTA — môže byť odkaz na blog alebo produkt, ale nie agresívny
-
-Produkty prelinkuj prirodzene ak to dáva zmysel, nie ako reklamu."""
+4. Soft CTA — prelinkuj relevantný produkt z produktovej mapy prirodzene (1 veta, nie agresívne)"""
     else:
         type_instruction = """Píšeš KONVERZNÝ newsletter.
 Cieľ: predať produkty cez edukáciu — nie cez nátlak.
 Štruktúra:
 1. Problém/bolák čitateľa (1–2 vety)
 2. Mechanizmus prečo bežné riešenia nefungujú
-3. Predstavenie produktov ako riešenia — s URL odkazmi
-4. Jasné CTA s urgenciou (akcia, limitovaná ponuka alebo dátum)
-
-Produkty: {products}"""
-        type_instruction = type_instruction.format(products=products_str)
+3. Predstavenie 2-3 relevantných produktov z produktovej mapy ako riešenia — s URL odkazmi, s vysvetlením prečo fungujú
+4. Jasné CTA s urgenciou"""
 
     subtopics_str = "\n".join([f"- {s}" for s in subtopics if s.strip()])
 
@@ -265,7 +307,9 @@ Podtémy / kľúčové otázky na pokrytie:
 
 {type_instruction}
 
-Odpovedz VÝLUČNE v tomto formáte — každá hodnota na samostatnom riadku medzi značkami:
+{product_context}
+
+Odpovedz VÝLUČNE v tomto formáte — každá hodnota medzi XML značkami:
 
 <subject_a>predmet emailu curiosity/mechanizmus max 55 znakov</subject_a>
 <subject_b>predmet emailu benefit/výsledok max 55 znakov</subject_b>
@@ -351,12 +395,30 @@ with col_left:
 
 with col_right:
     st.markdown("#### Produkty v tomto emaili")
-    products = parse_products(products_raw)
-    if products:
-        for p in products:
-            st.markdown(f"✅ **{p['name']}**  \n`{p['url']}`")
+    all_products = parse_products(products_raw)
+    none_option = "— nevybrané (agent vyberie sám) —"
+
+    if all_products:
+        product_names = [p["name"] for p in all_products]
+        options = [none_option] + product_names
+
+        p1 = st.selectbox("Produkt 1", options=options, index=0, key="prod1")
+        p2 = st.selectbox("Produkt 2", options=options, index=0, key="prod2")
+        p3 = st.selectbox("Produkt 3", options=options, index=0, key="prod3")
+
+        selected_names = [p for p in [p1, p2, p3] if p != none_option]
+        # deduplicate
+        seen = set()
+        selected_names = [x for x in selected_names if not (x in seen or seen.add(x))]
+        products = [p for p in all_products if p["name"] in selected_names]
+
+        if products:
+            st.caption(f"✅ Vybrané: {len(products)} produkt(y)")
+        else:
+            st.caption("Agent vyberie produkty sám podľa témy.")
     else:
-        st.caption("Žiadne produkty — pridaj ich v sidebari vľavo.")
+        products = []
+        st.caption("Žiadne produkty — nastav ich v Streamlit Secrets.")
 
     st.markdown("---")
 
@@ -379,7 +441,7 @@ with col_right:
                 email_type=email_type,
                 topic=topic,
                 subtopics=subtopics_input,
-                products=products,
+                products=products if products else all_products,
                 tone_examples=tone_examples,
             )
             st.session_state.result = result
