@@ -309,20 +309,23 @@ Podtémy / kľúčové otázky na pokrytie:
 
 {product_context}
 
-Odpovedz VÝLUČNE v tomto formáte — každá hodnota medzi XML značkami:
+Odpovedz VÝLUČNE v tomto formáte:
 
 <subject_a>predmet emailu curiosity/mechanizmus max 55 znakov</subject_a>
 <subject_b>predmet emailu benefit/výsledok max 55 znakov</subject_b>
 <preview_text>preview text 45 az 85 znakov</preview_text>
 <email_html>
-kompletný HTML email s inline štýlmi vhodný pre Ecomail
+<!DOCTYPE html><html><body style="font-family:Georgia,serif;max-width:600px;margin:0 auto;padding:20px;color:#1a2e10;background:#ffffff;">
+[TU VLOZ KOMPLETNY HTML EMAIL - min 400 slov - s nadpismi, odstavcami, produktovymi odkazmi a podpisom MDDr. Martin Masa]
+</body></html>
 </email_html>
 
-Použi presne tieto XML značky. Nič iné nepíš."""
+DOLEZITE: email_html musi obsahovat KOMPLETNY HTML kod so skutocnym obsahom, nie placeholder text.
+Pouzi presne tieto XML znacky. Nic ine nepis."""
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=6000,
+        max_tokens=8000,
         system=system,
         messages=[{"role": "user", "content": user_prompt}],
     )
