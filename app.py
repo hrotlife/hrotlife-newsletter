@@ -220,13 +220,16 @@ Podtémy / kľúčové otázky na pokrytie:
 
 {type_instruction}
 
-Formát výstupu — odpovedz VÝLUČNE v JSON (bez markdown backticks):
-{{
-  "subject_a": "predmet emailu — curiosity/mechanizmus (max 55 znakov)",
-  "subject_b": "predmet emailu — benefit/výsledok (max 55 znakov)",
-  "preview_text": "preview text (45–85 znakov)",
-  "email_html": "kompletný HTML email s inline štýlmi, vhodný pre Ecomail"
-}}"""
+Odpovedz VÝLUČNE v tomto formáte — každá hodnota na samostatnom riadku medzi značkami:
+
+<subject_a>predmet emailu curiosity/mechanizmus max 55 znakov</subject_a>
+<subject_b>predmet emailu benefit/výsledok max 55 znakov</subject_b>
+<preview_text>preview text 45 az 85 znakov</preview_text>
+<email_html>
+kompletný HTML email s inline štýlmi vhodný pre Ecomail
+</email_html>
+
+Použi presne tieto XML značky. Nič iné nepíš."""
 
     response = client.messages.create(
         model="claude-sonnet-4-5",
@@ -236,13 +239,17 @@ Formát výstupu — odpovedz VÝLUČNE v JSON (bez markdown backticks):
     )
 
     raw = response.content[0].text.strip()
-    raw = re.sub(r"^```json\s*", "", raw, flags=re.MULTILINE)
-    raw = re.sub(r"^```\s*", "", raw, flags=re.MULTILINE)
-    raw = raw.strip()
-    match = re.search(r'\{.*\}', raw, re.DOTALL)
-    if match:
-        raw = match.group(0)
-    return json.loads(raw)
+
+    def extract_tag(tag, text):
+        match = re.search(rf'<{tag}>(.*?)</{tag}>', text, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
+    return {
+        "subject_a": extract_tag("subject_a", raw),
+        "subject_b": extract_tag("subject_b", raw),
+        "preview_text": extract_tag("preview_text", raw),
+        "email_html": extract_tag("email_html", raw),
+    }
 
 
 def research_subtopics(client, topic: str, tone_examples: str) -> list[str]:
